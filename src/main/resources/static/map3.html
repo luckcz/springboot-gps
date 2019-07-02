@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style type="text/css">
+        body, html {width: 100%;height: 98%;margin:0;font-family:"微软雅黑";}
+        #allmap{width:100%;height:100%;}
+        p{margin-left:5px; font-size:14px;}
+    </style>
+    <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=Bpgazoh0Xv0siyAZtbo5T8PMqj1RwyvW"></script>
+
+    <title>计算地图两点的距离</title>
+</head>
+<body>
+<div id="allmap"></div>
+<input type="button" value="计算目的地距离自己的位置" onclick="acount()"></input>
+</body>
+</html>
+<script type="text/javascript">
+    var infoWindow ;
+    var pointEndLngTemp = 300 ;
+    var pointEndLatTemp = 300 ;
+    localStorage.clear();
+    localStorage.setItem("pointStartLng",300);
+    localStorage.setItem("pointStartLat",300);
+    localStorage.setItem("pointEndLng",300);
+    localStorage.setItem("pointEndLat",300);
+    // 百度地图API功能
+    var map = new BMap.Map("allmap");
+    map.centerAndZoom(new BMap.Point(116.404, 39.915), 11);
+    map.setDefaultCursor("default");
+    // 添加带有定位的导航控件
+    var navigationControl = new BMap.NavigationControl({
+        // 靠左上角位置
+        anchor: BMAP_ANCHOR_TOP_LEFT,
+        // LARGE类型
+        type: BMAP_NAVIGATION_CONTROL_LARGE,
+        // 启用显示定位
+        enableGeolocation: true
+    });
+    function myFun(result){
+        var cityName = result.name;
+        map.setCenter(cityName);
+        alert("当前定位城市:"+cityName);
+    }
+    var myCity = new BMap.LocalCity();
+    myCity.get(myFun);
+    map.addControl(navigationControl);
+    // 添加定位控件
+    var geolocationControl = new BMap.GeolocationControl();
+    geolocationControl.addEventListener("locationSuccess", function(e){
+        // 定位成功事件
+        var address = '';
+        address += e.addressComponent.province;
+        address += e.addressComponent.city;
+        address += e.addressComponent.district;
+        address += e.addressComponent.street;
+        address += e.addressComponent.streetNumber;
+        console.log("进入到手动定位当前系统");
+        localStorage.setItem("pointStartLng",e.point.lng);
+        localStorage.setItem("pointStartLat",e.point.lat);
+        console.log("当前定位地址为：" + address);
+    });
+    geolocationControl.addEventListener("locationError",function(e){
+        // 定位失败事件
+        alert(e.message);
+    });
+    map.addControl(geolocationControl);
+    map.enableScrollWheelZoom();   //启用滚轮放大缩小，默认禁用
+    map.enableContinuousZoom();    //启用地图惯性拖拽，默认禁用
+    map.disableDoubleClickZoom();  //禁用双击方法功能，默认启用
+    //双击获取点击的经纬度
+    map.addEventListener("dblclick",function(e){
+        localStorage.setItem("pointEndLng",e.point.lng);
+        localStorage.setItem("pointEndLat",e.point.lat);
+        var endPoint = new BMap.Point(localStorage.getItem("pointEndLng"), localStorage.getItem("pointEndLat"));
+        var marker = new BMap.Marker(endPoint);
+        marker.enableDragging();
+        marker.addEventListener("mouseover",function (e) {
+            endPoint = new BMap.Point(localStorage.getItem("pointEndLng"), localStorage.getItem("pointEndLat"));
+            var geoc = new BMap.Geocoder();
+            geoc.getLocation(endPoint, function(rs){
+                var addComp = rs.addressComponents;
+                localStorage.setItem("province",addComp.province);
+                localStorage.setItem("city",addComp.city);
+                localStorage.setItem("district",addComp.district);
+                localStorage.setItem("street",addComp.street);
+                localStorage.setItem("streetNumber",addComp.streetNumber);
+            });
+            setTimeout("notifyAll()",500);
+        });
+
+        marker.addEventListener("mouseout",function (e) {
+            map.closeInfoWindow(infoWindow,endPoint); //开启信息窗口
+        });
+
+        marker.addEventListener("click",function(e){
+            console.log("进入点击窗口")
+            map.openInfoWindow(infoWindow,endPoint); //开启信息窗口
+        });
+        marker.addEventListener("dragend",function (e) {
+            localStorage.setItem("pointEndLng",e.point.lng);
+            localStorage.setItem("pointEndLat",e.point.lat);
+            infoWindow = "";
+            var allOverlay = map.getOverlays();
+            console.log(allOverlay);
+            for (var i = 0; i < allOverlay.length; i++){
+                console.log(allOverlay[i].z.strokeStyle);
+                if(allOverlay[i].z.strokeStyle != undefined && allOverlay[i].z.strokeStyle != null && allOverlay[i].z.strokeStyle == "solid"){
+                    console.log("进来了")
+                    map.removeOverlay(allOverlay[i]);
+                    continue ;
+                }
+            }
+        });
+        //map.addOverlay(marker);
+        var label = new BMap.Label("终点",{offset:new BMap.Size(20,-10)});
+        deletePoint();
+        addMarker(marker,label);
+        console.log("添加标注完毕")
+    });
+
+    function notifyAll() {
+        var opts = {
+            width : 200,     // 信息窗口宽度
+            height: 70,     // 信息窗口高度
+            title : localStorage.getItem("province")+localStorage.getItem("city") , // 信息窗口标题
+            enableMessage:true,//设置允许信息窗发送短息
+            message:""
+        }
+        var local = localStorage.getItem("province")+
+            localStorage.getItem("city")+
+            localStorage.getItem("district")+
+            localStorage.getItem("street")+
+            localStorage.getItem("streetNumber");
+        console.log("local--------->")
+        console.log(local);
+        infoWindow = new BMap.InfoWindow(local , opts);  // 创建信息窗口对象
+    }
+
+    function acount(){
+        if(localStorage.getItem("pointStartLng") == 300 || localStorage.getItem("pointStartLat") == 300){
+            alert("请定位自己的位置！！！");
+            return ;
+        }
+        if(localStorage.getItem("pointEndLng") == 300 || localStorage.getItem("pointEndLat") == 300){
+            alert("请选择目的地！！！");
+            return ;
+        }
+        if(pointEndLngTemp == localStorage.getItem("pointEndLng") && pointEndLatTemp == localStorage.getItem("pointEndLat")){
+            return ;
+        }
+        pointEndLngTemp = localStorage.getItem("pointEndLng") ;
+        pointEndLatTemp = localStorage.getItem("pointEndLat") ;
+        var startPoint = new BMap.Point(localStorage.getItem("pointStartLng"), localStorage.getItem("pointStartLat"));
+        var endPoint = new BMap.Point(localStorage.getItem("pointEndLng"), localStorage.getItem("pointEndLat"));
+        console.log("startPoint----------------------")
+        console.log(startPoint);
+        console.log("endPoint----------------------")
+        console.log(endPoint);
+        var distinct = (map.getDistance(startPoint,endPoint)*1.0/1000).toFixed(2);
+        console.log('前端当前位置到目的地：'+distinct+' 公里。');  //获取两点距离,保留小数点后两位
+        var polyline = new BMap.Polyline([startPoint,endPoint], {strokeColor:"blue", strokeWeight:6, strokeOpacity:0.5});  //定义折线
+        map.addOverlay(polyline);     //添加折线到地图上
+        var allOverlay = map.getOverlays();
+        console.log(allOverlay);
+        ayscInterface();
+    }
+
+    function deletePoint(){
+        var allOverlay = map.getOverlays();
+        console.log(allOverlay);
+        console.log("图层的长度："+allOverlay.length);
+        for (var i = 0; i < allOverlay.length; i++){
+            if(allOverlay[i].z.label != undefined && allOverlay[i].z.label != null && allOverlay[i].z.label.content == "终点"){
+                map.removeOverlay(allOverlay[i]);
+                continue ;
+            }
+            if(allOverlay[i].z.strokeStyle != undefined && allOverlay[i].z.strokeStyle != null && allOverlay[i].z.strokeStyle == "solid"){
+                map.removeOverlay(allOverlay[i]);
+                continue ;
+            }
+        }
+    }
+
+
+    // 编写自定义函数,创建标注
+    function addMarker(marker,label){
+        map.addOverlay(marker);
+        marker.setLabel(label);
+    }
+
+    function ayscInterface(){
+        $.ajax({
+            url : "acountDistinct",                   　　  //地址
+            type : 'get',　　　　　　 //请求方式 还可以是get type不可写成Type 不让会导致数据发送不过去,使用post无法接受
+            dataType : 'json',　　　　//返回格式 ,还可以是json
+            async : true,　　　 　　
+            data : {
+                "startLng":localStorage.getItem("pointStartLng"),
+                "startLat":localStorage.getItem("pointStartLat"),
+                "endLng":localStorage.getItem("pointEndLng"),
+                "endLat":localStorage.getItem("pointEndLat")
+            },　　 //参数值
+            success : function(data){　　//请求成功时的处理
+                console.log(data);
+                console.log("success")
+            },
+            error : function(){　　　　//请求出错误时的处理
+                alert("接口调用错误");
+            }
+        });
+    }
+
+</script>
+<script  src="http://libs.baidu.com/jquery/1.7.2/jquery.min.js"></script>
